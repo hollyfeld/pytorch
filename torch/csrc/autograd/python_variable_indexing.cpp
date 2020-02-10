@@ -256,6 +256,29 @@ static inline THPObjectPtr wrapTuple(PyObject* index) {
   return res;
 }
 
+static Variable applySelect(const Variable& self, int64_t dim, PyObject* index, int64_t real_dim=0) {
+  if (jit::tracer::isTracing() && THPVariable_Check(index)) {
+    auto& var = THPVariable_Unpack(index);
+    jit::tracer::ArgumentStash::stashValue(std::string("index"), 1, var, jit::IntType::get());
+  }
+
+  int64_t unpacked_index = THPUtils_unpackLong(index);
+  if (unpacked_index == 0 && dim == 0 && self.dim() == 0) {
+    throw IndexError(
+        "invalid index of a 0-dim tensor. "
+        "Use tensor.item() to convert a 0-dim tensor to a Python number");
+  }
+  int64_t size = self.size(dim);
+  if (unpacked_index < -size || unpacked_index >= size) {
+    throw IndexError("index %lld is out of bounds for dimension %lld with size %lld",
+      unpacked_index, real_dim, size);
+  }
+  // if the index is negative, do not normalize it because that would fix the index
+  // on the current tensor size in the tracer.
+  // aten::select also works on negative indices
+  return self.select(dim, unpacked_index);
+}
+
 PyObject* THPVariable_getitem(PyObject* self, PyObject* index) {
   HANDLE_TH_ERRORS
   auto& self_ = reinterpret_cast<THPVariable*>(self)->cdata;
@@ -267,23 +290,24 @@ PyObject* THPVariable_getitem(PyObject* self, PyObject* index) {
     || PySlice_Check(index) \
     || index == Py_Ellipsis \
     || index == Py_None) {
-    int64_t index = 0;
-    int64_t dim = 0;
-    int64_t real_dim = 0;
-    TORCH_CHECK_INDEX(
-      !(index == 0 && dim == 0 && self_.dim() == 0),
-      "invalid index of a 0-dim tensor. ",
-      "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
+    // int64_t index = 0;
+    // int64_t dim = 0;
+    // int64_t real_dim = 0;
+    // TORCH_CHECK_INDEX(
+    //   !(index == 0 && dim == 0 && self_.dim() == 0),
+    //   "invalid index of a 0-dim tensor. ",
+    //   "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
 
-    int64_t size = self_.size(dim);
-    TORCH_CHECK_INDEX(
-      index >= -size && index < size,
-      "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
+    // int64_t size = self_.size(dim);
+    // TORCH_CHECK_INDEX(
+    //   index >= -size && index < size,
+    //   "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
 
     // if the index is negative, do not normalize it because that would fix the index
     // on the current tensor size in the tracer.
     // aten::select also works on negative indices
-    return wrap(self_.select(dim, index));
+    // return wrap(self_.select(dim, index));
+    return wrap(applySelect(self_, 0, index));
     // return wrap(at::indexing::handleSimpleTypesInSingleDimIndexingGet(
     //   self_,
     //   traceAndConvertPythonIndexToTensorIndex(self_, index, is_tracing),
