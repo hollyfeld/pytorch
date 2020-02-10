@@ -146,6 +146,8 @@ void set_item(Tensor& self, ArrayRef<TensorIndex> indices, Scalar v) {
   OptionalDeviceGuard device_guard(device_of(self));
   Tensor value;
 
+  std::cout << "set_item here1" << std::endl;
+
   // TODO: This qint special case looks very suspicious...
   if (isQIntType(self.scalar_type())) {
     value = at::native::scalar_tensor(v, device(kCPU).dtype(kFloat));
