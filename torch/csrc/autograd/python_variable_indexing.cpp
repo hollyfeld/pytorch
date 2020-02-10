@@ -267,23 +267,23 @@ PyObject* THPVariable_getitem(PyObject* self, PyObject* index) {
     || PySlice_Check(index) \
     || index == Py_Ellipsis \
     || index == Py_None) {
-    // int64_t index = 0;
-    // int64_t dim = 0;
-    // int64_t real_dim = 0;
-    // TORCH_CHECK_INDEX(
-    //   !(index == 0 && dim == 0 && self_.dim() == 0),
-    //   "invalid index of a 0-dim tensor. ",
-    //   "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
+    int64_t index = 0;
+    int64_t dim = 0;
+    int64_t real_dim = 0;
+    TORCH_CHECK_INDEX(
+      !(index == 0 && dim == 0 && self_.dim() == 0),
+      "invalid index of a 0-dim tensor. ",
+      "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
 
-    // int64_t size = self_.size(dim);
-    // TORCH_CHECK_INDEX(
-    //   index >= -size && index < size,
-    //   "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
+    int64_t size = self_.size(dim);
+    TORCH_CHECK_INDEX(
+      index >= -size && index < size,
+      "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
 
     // if the index is negative, do not normalize it because that would fix the index
     // on the current tensor size in the tracer.
     // aten::select also works on negative indices
-    return wrap(self_.select(0, 0));
+    return wrap(self_.select(dim, index));
     // return wrap(at::indexing::handleSimpleTypesInSingleDimIndexingGet(
     //   self_,
     //   traceAndConvertPythonIndexToTensorIndex(self_, index, is_tracing),
