@@ -283,42 +283,45 @@ PyObject* THPVariable_getitem(PyObject* self, PyObject* index) {
   HANDLE_TH_ERRORS
   auto& self_ = reinterpret_cast<THPVariable*>(self)->cdata;
   OptionalDeviceGuard device_guard(device_of(self_));
-  bool is_tracing = jit::tracer::isTracing();
+  // bool is_tracing = jit::tracer::isTracing();
 
-  // handle simple types: integers, slices, ellipsis, none
-  if (THPUtils_checkLong(index) \
-    || PySlice_Check(index) \
-    || index == Py_Ellipsis \
-    || index == Py_None) {
-    // int64_t index = 0;
-    // int64_t dim = 0;
-    // int64_t real_dim = 0;
-    // TORCH_CHECK_INDEX(
-    //   !(index == 0 && dim == 0 && self_.dim() == 0),
-    //   "invalid index of a 0-dim tensor. ",
-    //   "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
+  // // handle simple types: integers, slices, ellipsis, none
+  // if (THPUtils_checkLong(index) \
+  //   || PySlice_Check(index) \
+  //   || index == Py_Ellipsis \
+  //   || index == Py_None) {
+  //   // int64_t index = 0;
+  //   // int64_t dim = 0;
+  //   // int64_t real_dim = 0;
+  //   // TORCH_CHECK_INDEX(
+  //   //   !(index == 0 && dim == 0 && self_.dim() == 0),
+  //   //   "invalid index of a 0-dim tensor. ",
+  //   //   "Use `tensor.item()` in Python or `tensor.item<T>()` in C++ to convert a 0-dim tensor to a number");
 
-    // int64_t size = self_.size(dim);
-    // TORCH_CHECK_INDEX(
-    //   index >= -size && index < size,
-    //   "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
+  //   // int64_t size = self_.size(dim);
+  //   // TORCH_CHECK_INDEX(
+  //   //   index >= -size && index < size,
+  //   //   "index ", index, " is out of bounds for dimension ", real_dim, " with size ", size);
 
-    // if the index is negative, do not normalize it because that would fix the index
-    // on the current tensor size in the tracer.
-    // aten::select also works on negative indices
-    // return wrap(self_.select(dim, index));
+  //   // if the index is negative, do not normalize it because that would fix the index
+  //   // on the current tensor size in the tracer.
+  //   // aten::select also works on negative indices
+  //   return wrap(self_.select(dim, index));
+  //   // return wrap(at::indexing::handleSimpleTypesInSingleDimIndexingGet(
+  //   //   self_,
+  //   //   traceAndConvertPythonIndexToTensorIndex(self_, index, is_tracing),
+  //   //   /*is_tracing=*/is_tracing));
+  // }
+
+  if (THPUtils_checkLong(index)) {
     return wrap(applySelect(self_, 0, index));
-    // return wrap(at::indexing::handleSimpleTypesInSingleDimIndexingGet(
-    //   self_,
-    //   traceAndConvertPythonIndexToTensorIndex(self_, index, is_tracing),
-    //   /*is_tracing=*/is_tracing));
   }
 
   // wrap index in a tuple if it's not already one
   THPObjectPtr holder = wrapTuple(index);
 
   variable_list variableIndices;
-  Variable sliced = applySlicing(self_, holder.get(), variableIndices, /*is_tracing=*/is_tracing);
+  Variable sliced = applySlicing(self_, holder.get(), variableIndices, /*is_tracing=*/jit::tracer::isTracing());
   if (variableIndices.empty()) {
     if (sliced.is_same(self_)) {
       // ensure we return a shallow copy for things like x[...]
